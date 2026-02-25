@@ -10,9 +10,14 @@ from .constants import (
     ENDPOINTS,
     POSSIBLE_SEVERITIES,
     WHITELIST_FILTER,
+    VULNERABILITIES_MAX_LIMIT,
 )
 from .OrcaSecurityParser import OrcaSecurityParser
-from .query_builder import AlertQueryBuilder, AssetQueryBuilder
+from .query_builder import (
+    AlertQueryBuilder,
+    AssetQueryBuilder,
+    VulnerabilityQueryBuilder,
+)
 from .UtilsManager import validate_response
 
 if TYPE_CHECKING:
@@ -92,7 +97,9 @@ class OrcaSecurityManager:
 
     def test_connectivity(self) -> None:
         """Test connectivity to the OrcaSecurity API."""
-        payload = {"limit": 1}
+        # Use the new VulnerabilityQueryBuilder for connectivity test
+        test_query = VulnerabilityQueryBuilder(limit=1)
+        payload = test_query.build()
         url = self._get_full_url("vulnerability_details")
         response = self.session.post(url, json=payload)
         validate_response(response)
@@ -172,7 +179,9 @@ class OrcaSecurityManager:
             alert_id (str): The identifier of the alert to update.
             status (int): The status value to set for the alert.
         """
-        url = self._get_full_url("update_alert_status", alert_id=alert_id, status=status)
+        url = self._get_full_url(
+            "update_alert_status", alert_id=alert_id, status=status
+        )
         response = self.session.put(url)
         validate_response(response)
 
@@ -254,7 +263,9 @@ class OrcaSecurityManager:
         """
         if framework_names:
             filtered_frameworks = [
-                framework for framework in frameworks if framework.display_name in framework_names
+                framework
+                for framework in frameworks
+                if framework.display_name in framework_names
             ]
             not_found_frameworks = list(
                 set(framework_names)
@@ -264,7 +275,9 @@ class OrcaSecurityManager:
             filtered_frameworks = frameworks
             not_found_frameworks = []
 
-        return (filtered_frameworks[:limit] if limit else filtered_frameworks), not_found_frameworks
+        return (
+            filtered_frameworks[:limit] if limit else filtered_frameworks
+        ), not_found_frameworks
 
     def start_scan(self, asset_id: str) -> ScanStatus:
         """Start a scan for a specific asset.
@@ -315,22 +328,23 @@ class OrcaSecurityManager:
                 The filtered vulnerability results (limited if `limit` is set).
                 Full insight data if `create_insight` is True, otherwise None.
         """
-        payload = {
-            "dsl_filter": {
-                "filter": [{"field": "cve_id", "includes": [cve_id]}],
-                "sort": [{"field": "severity", "order": "desc"}],
-            }
-        }
+        max_result_limit = limit or VULNERABILITIES_MAX_LIMIT
+        fetch_limit = DEFAULT_RESULTS_LIMIT
+        if fetch_limit > max_result_limit:
+            fetch_limit = max_result_limit
 
-        results = self._paginate_results(
-            method="POST",
-            url=self._get_full_url("vulnerability_details"),
-            body=payload,
-            limit=limit,
-        )
-        enrichment_data = self.parser.build_results(
-            raw_json=results[:limit], pure_data=True, method="build_cve_object"
-        )
+        query = VulnerabilityQueryBuilder(fetch_limit).with_cve_id(cve_id)
+
+        try:
+            results = self._paginate_cve_results(query, max_result_limit=max_result_limit)
+            # Ensure limit is an integer for slicing
+            enrichment_data = self.parser.build_results(
+                raw_json=results[:max_result_limit], pure_data=True, method="build_cve_object"
+            )
+        except Exception as e:
+            self.siemplify_logger.error(f"Error in _paginate_cve_results or build_results: {e}")
+            self.siemplify_logger.exception(e)
+            raise
         return_list = [enrichment_data, None]
         if create_insight:
             # for insight generation whole data is required
@@ -387,59 +401,79 @@ class OrcaSecurityManager:
         }
 
         if severity:
-            payload.get("dsl_filter").get("filter").append({
-                "field": "severity",
-                "includes": POSSIBLE_SEVERITIES[: POSSIBLE_SEVERITIES.index(severity.lower()) + 1],
-            })
+            payload.get("dsl_filter").get("filter").append(
+                {
+                    "field": "severity",
+                    "includes": POSSIBLE_SEVERITIES[
+                        : POSSIBLE_SEVERITIES.index(severity.lower()) + 1
+                    ],
+                }
+            )
 
-        response = self.session.post(self._get_full_url("vulnerability_details"), json=payload)
+        response = self.session.post(
+            self._get_full_url("vulnerability_details"), json=payload
+        )
         validate_response(response)
 
-        return self.parser.build_results(raw_json=response.json(), method="build_cve_object")
+        return self.parser.build_results(
+            raw_json=response.json(), method="build_cve_object"
+        )
 
-    def _paginate_results(
-        self,
-        method: str,
-        url: str,
-        params: dict[str, Any] | None = None,
-        body: dict[str, Any] | None = None,
-        limit: int | None = None,
-        err_msg: str = "Unable to get results",
+    def _paginate_cve_results(
+            self,
+            query: VulnerabilityQueryBuilder,
+            max_result_limit: int = DEFAULT_RESULTS_LIMIT,
     ) -> list[Any]:
-        """Paginate through API results and return a consolidated list.
-
-        Sends repeated requests if a next page token is returned, accumulating
-        all results into a single list.
-
-        Args:
-            method (str): HTTP method to use for the request (GET, POST, etc.).
-            url (str): The URL to send the request to.
-            params (dict, optional): Query parameters for the request. Defaults to None.
-            body (dict, optional): JSON payload for the request. Defaults to None.
-            limit (int, optional): Maximum number of results to fetch.
-            err_msg (str, optional): Error message to display if request fails.
-
-        Returns:
-            list[Any]: List of results returned by the API across all pages.
         """
-        if body is None:
-            body = {}
+        Retrieve paginated results for a vulnerability query.
+        
+        First query will have get_results_and_count=True to get total_items,
+        then paginate through all results using start_at_index and limit.
+        
+        Args:
+            query (VulnerabilityQueryBuilder): The query builder with CVE filters
+            max_result_limit: Maximum number of results to return across all pages.
+            
+        Returns:
+            list[Any]: All paginated results combined
+        """
+        start_index = 0
+        query.with_results_and_count(True).start_at_index(start_index)
+        url = self._get_full_url("vulnerability_details")
 
-        body.update({"limit": limit or DEFAULT_RESULTS_LIMIT})
+        results = []
+        total_items = 0
 
-        response = self.session.request(method, url, params=params, json=body)
+        while True:
+            payload = query.build()
+            self.siemplify_logger.info(f"Making first pagination {start_index=} with query {payload['query']}")
+            response = self.session.post(url, json=payload)
+            validate_response(response)
 
-        validate_response(response, err_msg)
-        json_response = response.json()
-        results = json_response.get("data", [])
-        next_page_token = json_response.get("next_page_token", "")
-
-        while next_page_token:
-            body.update({"next_page_token": next_page_token})
-
-            response = self.session.request(method, url, params=params, json=body)
-            validate_response(response, err_msg)
             json_response = response.json()
-            next_page_token = json_response.get("next_page_token", "")
-            results.extend(json_response.get("data", []))
-        return results
+            batch_data = json_response.get("data", [])
+
+            if not batch_data:
+                break
+
+            results.extend(batch_data)
+            start_index += len(batch_data)
+
+            # Get total items count from first response
+            if "total_items" in json_response:
+                total_items = json_response["total_items"]
+
+                self.siemplify_logger.info(f"Total items to fetch: {total_items}")
+                query.with_results_and_count(False)
+
+            if total_items <= start_index:
+                self.siemplify_logger.info("No more items to fetch, breaking pagination loop.")
+                break
+
+            if max_result_limit >= start_index:
+                self.siemplify_logger.info(
+                    "Fetched batch of results, continuing pagination until max_result_limit is reached."
+                )
+                break
+
+        return results[:max_result_limit]

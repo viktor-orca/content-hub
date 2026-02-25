@@ -24,7 +24,8 @@ ENDPOINTS = {
     "get_frameworks": "/api/compliance/frameworks/overview",
     "start_scan": "/api/scan/asset/{asset_id}",
     "get_scan_status": "/api/scan/status/{scan_id}",
-    "vulnerability_details": "/api/query/cves",
+    # "vulnerability_details": "/api/query/cves",
+    "vulnerability_details": SERVING_QUERY,
     "asset_details": SERVING_QUERY,
 }
 
@@ -50,10 +51,16 @@ POSSIBLE_SEVERITIES = [
 ]
 SEVERITY_MAPPING = {
     "compromised": 100,
+    "critical": 100,
     "imminent compromise": 80,
+    "high": 80,
     "hazardous": 60,
+    "medium": 60,
     "informational": -1,
+    "low": -1,
+    "unknown": -1,
 }
+
 HIGHEST_POSSIBLE_SCORE = 10.0
 
 
@@ -86,7 +93,12 @@ VULNERABILITIES_TABLE_NAME = "Vulnerability Details"
 ASSETS_TABLE_NAME = "Asset Details"
 SEVERITY_COLOR_MAPPER = {
     "compromised": "style='color: #ff0000;'",
+    "critical": "style='color: #ff0000;'",
     "imminent compromise": "style='color: #ff9900;'",
+    "high": "style='color: #ff9900;'",
     "hazardous": "style='color: #ffff00;'",
+    "medium": "style='color: #ffff00;'",
     "informational": "",
+    "low": "",
+    "unknown": "",
 }
