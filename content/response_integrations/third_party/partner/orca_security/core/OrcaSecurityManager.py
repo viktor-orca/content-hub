@@ -8,8 +8,8 @@ import requests
 from .constants import (
     DEFAULT_RESULTS_LIMIT,
     ENDPOINTS,
-    WHITELIST_FILTER,
     VULNERABILITIES_MAX_LIMIT,
+    WHITELIST_FILTER,
 )
 from .OrcaSecurityParser import OrcaSecurityParser
 from .query_builder import (
@@ -178,9 +178,7 @@ class OrcaSecurityManager:
             alert_id (str): The identifier of the alert to update.
             status (int): The status value to set for the alert.
         """
-        url = self._get_full_url(
-            "update_alert_status", alert_id=alert_id, status=status
-        )
+        url = self._get_full_url("update_alert_status", alert_id=alert_id, status=status)
         response = self.session.put(url)
         validate_response(response)
 
@@ -283,9 +281,7 @@ class OrcaSecurityManager:
         """
         if framework_names:
             filtered_frameworks = [
-                framework
-                for framework in frameworks
-                if framework.display_name in framework_names
+                framework for framework in frameworks if framework.display_name in framework_names
             ]
             not_found_frameworks = list(
                 set(framework_names)
@@ -295,9 +291,7 @@ class OrcaSecurityManager:
             filtered_frameworks = frameworks
             not_found_frameworks = []
 
-        return (
-            filtered_frameworks[:limit] if limit else filtered_frameworks
-        ), not_found_frameworks
+        return (filtered_frameworks[:limit] if limit else filtered_frameworks), not_found_frameworks
 
     def start_scan(self, asset_id: str) -> ScanStatus:
         """Start a scan for a specific asset.
@@ -356,9 +350,7 @@ class OrcaSecurityManager:
         query = VulnerabilityQueryBuilder(fetch_limit).with_cve_id(cve_id)
 
         try:
-            results = self._paginate_cve_results(
-                query, max_result_limit=max_result_limit
-            )
+            results = self._paginate_cve_results(query, max_result_limit=max_result_limit)
             # Ensure limit is an integer for slicing
             enrichment_data = self.parser.build_results(
                 raw_json=results[:max_result_limit],
@@ -366,9 +358,7 @@ class OrcaSecurityManager:
                 method="build_cve_object",
             )
         except Exception as e:
-            self.siemplify_logger.error(
-                f"Error in _paginate_cve_results or build_results: {e}"
-            )
+            self.siemplify_logger.error(f"Error in _paginate_cve_results or build_results: {e}")
             self.siemplify_logger.exception(e)
             raise
         return_list = [enrichment_data, None]
@@ -425,14 +415,10 @@ class OrcaSecurityManager:
             .build()
         )
 
-        response = self.session.post(
-            self._get_full_url("vulnerability_details"), json=payload
-        )
+        response = self.session.post(self._get_full_url("vulnerability_details"), json=payload)
         validate_response(response)
 
-        return self.parser.build_results(
-            raw_json=response.json(), method="build_cve_object"
-        )
+        return self.parser.build_results(raw_json=response.json(), method="build_cve_object")
 
     def _paginate_cve_results(
         self,
@@ -484,9 +470,7 @@ class OrcaSecurityManager:
                 query.with_results_and_count(False)
 
             if total_items <= start_index:
-                self.siemplify_logger.info(
-                    "No more items to fetch, breaking pagination loop."
-                )
+                self.siemplify_logger.info("No more items to fetch, breaking pagination loop.")
                 break
 
             if max_result_limit >= start_index:

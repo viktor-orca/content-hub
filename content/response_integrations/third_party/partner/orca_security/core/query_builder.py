@@ -353,40 +353,34 @@ class VulnerabilityQueryBuilder:
         }
 
         if self.cve_ids:
-            query["with"]["values"].append(
-                {
-                    "key": "CveId",
-                    "values": self.cve_ids,
-                    "type": "str",
-                    "operator": "in",
-                }
-            )
+            query["with"]["values"].append({
+                "key": "CveId",
+                "values": self.cve_ids,
+                "type": "str",
+                "operator": "in",
+            })
 
         if self.asset_unique_id:
-            query["with"]["values"].append(
-                {
-                    "keys": ["Inventory"],
-                    "models": ["Inventory"],
-                    "type": "object",
-                    "operator": "has",
-                    "with": {
-                        "key": "AssetUniqueId",
-                        "values": self.asset_unique_id,
-                        "type": "str",
-                        "operator": "in",
-                    },
-                }
-            )
-
-        if self.severity:
-            query["with"]["values"].append(
-                {
-                    "key": "CvssSeverity",
-                    "values": self.severity,
+            query["with"]["values"].append({
+                "keys": ["Inventory"],
+                "models": ["Inventory"],
+                "type": "object",
+                "operator": "has",
+                "with": {
+                    "key": "AssetUniqueId",
+                    "values": self.asset_unique_id,
                     "type": "str",
                     "operator": "in",
-                }
-            )
+                },
+            })
+
+        if self.severity:
+            query["with"]["values"].append({
+                "key": "CvssSeverity",
+                "values": self.severity,
+                "type": "str",
+                "operator": "in",
+            })
 
         # Build the payload with new structure
         payload = {

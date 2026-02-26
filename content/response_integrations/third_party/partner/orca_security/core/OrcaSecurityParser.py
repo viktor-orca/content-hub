@@ -9,9 +9,7 @@ class OrcaSecurityParser:
     ):
         return [
             getattr(self, method)(item_json, **kwargs)
-            for item_json in (raw_json if pure_data else raw_json.get(data_key, []))[
-                :limit
-            ]
+            for item_json in (raw_json if pure_data else raw_json.get(data_key, []))[:limit]
         ]
 
     def build_alert_objects(self, raw_data):
@@ -73,7 +71,7 @@ class OrcaSecurityParser:
             raw_json,
             cve_id=raw_json.get("CveId"),
             summary=raw_json.get("Description"),
-            fix_available= True if str(raw_json.get("PatchAvailable")).lower() == "yes" else False,
+            fix_available=True if str(raw_json.get("PatchAvailable")).lower() == "yes" else False,
             asset_name=inventory.get("Name"),
             labels=None,
             published=raw_json.get("FirstSeen"),
