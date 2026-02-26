@@ -236,11 +236,32 @@ class OrcaSecurityManager:
                 List of framework names that were not found.
         """
         url = self._get_full_url("get_frameworks")
-        response = self.session.post(url)
-        validate_response(response)
-        return self.filter_frameworks(
-            self.parser.build_framework_objects(response.json()), framework_names, limit
-        )
+
+        payload = {
+            "framework_filters": {
+                "partial_framework_name": None,
+            }
+        }
+
+        frameworks = []
+        not_found_frameworks = []
+
+        if limit and limit > len(framework_names):
+            framework_names = framework_names[:limit]
+
+        for framework_name in framework_names:
+            payload["framework_filters"]["partial_framework_name"] = framework_name
+
+            response = self.session.post(url, json=payload)
+            validate_response(response)
+            found_items = self.parser.build_framework_objects(response.json())
+
+            if len(found_items) == 0:
+                not_found_frameworks.append(framework_name)
+            else:
+                frameworks.extend(found_items)
+
+        return frameworks, not_found_frameworks
 
     @staticmethod
     def filter_frameworks(

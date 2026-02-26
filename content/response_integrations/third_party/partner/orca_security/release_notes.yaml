@@ -150,3 +150,14 @@
     regressive: true
     deprecated: false
     removed: false
+-   description: Get Vulnerability Details, Get Compliance Info Updated the integration to support latest API version. Overwrite
+        the ontology mapping to align with the new API Vulnerability structure.
+    integration_version: 13.0
+    item_name: Orca Security
+    item_type: Integration
+    publish_time: '2026-02-30'
+    ticket_number: ''
+    new: false
+    regressive: false
+    deprecated: false
+    removed: false

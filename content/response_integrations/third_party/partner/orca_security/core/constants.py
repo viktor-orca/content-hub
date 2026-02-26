@@ -21,7 +21,7 @@ ENDPOINTS = {
     "snooze_alert": "/api/alerts/{alert_id}/snooze",
     "update_alert_status": "/api/alerts/{alert_id}/status/{status}",
     "add_alert_comment": "/api/alerts/{alert_id}/comment",
-    "get_frameworks": "/api/compliance/frameworks/overview",
+    "get_frameworks": "/api/serving-layer/compliance/frameworks/overview",
     "start_scan": "/api/scan/asset/{asset_id}",
     "get_scan_status": "/api/scan/status/{scan_id}",
     "vulnerability_details": SERVING_QUERY,
