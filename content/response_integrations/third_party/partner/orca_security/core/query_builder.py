@@ -239,6 +239,9 @@ class VulnerabilityQueryBuilder:
         self.additional_models: list[str] = ["InstalledPackage", "Inventory"]
         self.flat_json: bool = True
         self.full_graph_fetch: dict[str, bool] = {"enabled": True}
+        self.asset_unique_id: list[str] = []
+        self.severity: list[str] = []
+        self.order_by: list[str] = []
         self.max_tier: int = 2
 
     def with_results_and_count(self, value: bool = False) -> VulnerabilityQueryBuilder:
@@ -270,7 +273,7 @@ class VulnerabilityQueryBuilder:
         """Create a filter for cve_id field.
         Args:
             cve_id (str | list[str]): The CVE ID or list of CVE IDs to filter by.
-        
+
         Returns:
             VulnerabilityQueryBuilder: The instance of the builder.
         """
@@ -280,10 +283,55 @@ class VulnerabilityQueryBuilder:
             self.cve_ids = cve_id
 
         return self
-    
+
+    def with_asset_unique_id(self, value: str | list[str]) -> VulnerabilityQueryBuilder:
+        """
+        Create a filter for asset_unique_id field in the nested Inventory model.
+        Args:
+            value (str | list[str]): The asset unique ID or list of asset unique IDs to
+            filter by.
+        Returns:
+            VulnerabilityQueryBuilder: The instance of the builder.
+        """
+        if isinstance(value, str):
+            self.asset_unique_id = [value]
+        else:
+            self.asset_unique_id = value
+
+        return self
+
+    def with_severity(self, severity: str | list[str]) -> VulnerabilityQueryBuilder:
+        """
+        Create a filter for severity field.
+        Args:
+            severity (str | list[str]): The severity or list of severities to filter by.
+        Returns:
+            VulnerabilityQueryBuilder: The instance of the builder.
+        """
+        if isinstance(severity, str):
+            self.severity = [severity]
+        else:
+            self.severity = severity
+
+        return self
+
+    def with_order_by(self, fields: list[str] | str) -> VulnerabilityQueryBuilder:
+        """
+        Set the fields to order the query results by.
+        Args:
+            fields (list[str]): The list of fields to order by.
+        Returns:
+            VulnerabilityQueryBuilder: The instance of the builder.
+        """
+        if isinstance(fields, str):
+            self.order_by = [fields]
+        else:
+            self.order_by = fields
+        return self
+
     def build(self) -> dict[str, Any]:
         """Build the vulnerability query in the new API format.
-        
+
         Returns:
             dict[str, Any]: The complete payload with new structure matching new_builder.py requirements.
         """
@@ -300,17 +348,46 @@ class VulnerabilityQueryBuilder:
                         "type": "object",
                         "operator": "has",
                     },
-                    {
-                        "key": "CveId",
-                        "values": self.cve_ids,
-                        "type": "str",
-                        "operator": "in",
-                    }
                 ],
             },
         }
 
-        
+        if self.cve_ids:
+            query["with"]["values"].append(
+                {
+                    "key": "CveId",
+                    "values": self.cve_ids,
+                    "type": "str",
+                    "operator": "in",
+                }
+            )
+
+        if self.asset_unique_id:
+            query["with"]["values"].append(
+                {
+                    "keys": ["Inventory"],
+                    "models": ["Inventory"],
+                    "type": "object",
+                    "operator": "has",
+                    "with": {
+                        "key": "AssetUniqueId",
+                        "values": self.asset_unique_id,
+                        "type": "str",
+                        "operator": "in",
+                    },
+                }
+            )
+
+        if self.severity:
+            query["with"]["values"].append(
+                {
+                    "key": "CvssSeverity",
+                    "values": self.severity,
+                    "type": "str",
+                    "operator": "in",
+                }
+            )
+
         # Build the payload with new structure
         payload = {
             "query": query,
@@ -320,11 +397,14 @@ class VulnerabilityQueryBuilder:
             "additional_models[]": self.additional_models,
             "flat_json": self.flat_json,
             "full_graph_fetch": self.full_graph_fetch,
-            "max_tier": self.max_tier
+            "max_tier": self.max_tier,
         }
-        
+
+        if self.order_by:
+            payload["order_by[]"] = self.order_by
+
         # Add select fields if specified
         if self.select_fields:
             payload["select"] = self.select_fields
-        
+
         return payload

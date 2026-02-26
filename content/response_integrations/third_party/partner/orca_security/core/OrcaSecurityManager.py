@@ -8,7 +8,6 @@ import requests
 from .constants import (
     DEFAULT_RESULTS_LIMIT,
     ENDPOINTS,
-    POSSIBLE_SEVERITIES,
     WHITELIST_FILTER,
     VULNERABILITIES_MAX_LIMIT,
 )
@@ -336,13 +335,19 @@ class OrcaSecurityManager:
         query = VulnerabilityQueryBuilder(fetch_limit).with_cve_id(cve_id)
 
         try:
-            results = self._paginate_cve_results(query, max_result_limit=max_result_limit)
+            results = self._paginate_cve_results(
+                query, max_result_limit=max_result_limit
+            )
             # Ensure limit is an integer for slicing
             enrichment_data = self.parser.build_results(
-                raw_json=results[:max_result_limit], pure_data=True, method="build_cve_object"
+                raw_json=results[:max_result_limit],
+                pure_data=True,
+                method="build_cve_object",
             )
         except Exception as e:
-            self.siemplify_logger.error(f"Error in _paginate_cve_results or build_results: {e}")
+            self.siemplify_logger.error(
+                f"Error in _paginate_cve_results or build_results: {e}"
+            )
             self.siemplify_logger.exception(e)
             raise
         return_list = [enrichment_data, None]
@@ -390,25 +395,14 @@ class OrcaSecurityManager:
         Returns:
             list[Any]: List of parsed vulnerability objects.
         """
-        payload = {
-            "dsl_filter": {
-                "filter": [{"field": "asset_unique_id", "includes": [asset_id]}],
-                "sort": [{"field": "score", "order": "desc"}],
-            },
-            "limit": limit,
-            "start_at_index": 0,
-            "grouping": True,
-        }
 
-        if severity:
-            payload.get("dsl_filter").get("filter").append(
-                {
-                    "field": "severity",
-                    "includes": POSSIBLE_SEVERITIES[
-                        : POSSIBLE_SEVERITIES.index(severity.lower()) + 1
-                    ],
-                }
-            )
+        payload = (
+            VulnerabilityQueryBuilder(limit)
+            .with_asset_unique_id(asset_id)
+            .with_severity(severity)
+            .with_order_by("-CvssScore")
+            .build()
+        )
 
         response = self.session.post(
             self._get_full_url("vulnerability_details"), json=payload
@@ -420,20 +414,20 @@ class OrcaSecurityManager:
         )
 
     def _paginate_cve_results(
-            self,
-            query: VulnerabilityQueryBuilder,
-            max_result_limit: int = DEFAULT_RESULTS_LIMIT,
+        self,
+        query: VulnerabilityQueryBuilder,
+        max_result_limit: int = DEFAULT_RESULTS_LIMIT,
     ) -> list[Any]:
         """
         Retrieve paginated results for a vulnerability query.
-        
+
         First query will have get_results_and_count=True to get total_items,
         then paginate through all results using start_at_index and limit.
-        
+
         Args:
             query (VulnerabilityQueryBuilder): The query builder with CVE filters
             max_result_limit: Maximum number of results to return across all pages.
-            
+
         Returns:
             list[Any]: All paginated results combined
         """
@@ -446,7 +440,9 @@ class OrcaSecurityManager:
 
         while True:
             payload = query.build()
-            self.siemplify_logger.info(f"Making first pagination {start_index=} with query {payload['query']}")
+            self.siemplify_logger.info(
+                f"Making first pagination {start_index=} with query {payload['query']}"
+            )
             response = self.session.post(url, json=payload)
             validate_response(response)
 
@@ -467,7 +463,9 @@ class OrcaSecurityManager:
                 query.with_results_and_count(False)
 
             if total_items <= start_index:
-                self.siemplify_logger.info("No more items to fetch, breaking pagination loop.")
+                self.siemplify_logger.info(
+                    "No more items to fetch, breaking pagination loop."
+                )
                 break
 
             if max_result_limit >= start_index:
