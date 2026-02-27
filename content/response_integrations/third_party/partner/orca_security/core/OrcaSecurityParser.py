@@ -73,7 +73,6 @@ class OrcaSecurityParser:
             summary=raw_json.get("Description"),
             fix_available=True if str(raw_json.get("PatchAvailable")).lower() == "yes" else False,
             asset_name=inventory.get("Name"),
-            labels=None,
             published=raw_json.get("FirstSeen"),
             source_link=raw_json.get("SourceLink"),
             affected_packages=installed_package.get("Name"),

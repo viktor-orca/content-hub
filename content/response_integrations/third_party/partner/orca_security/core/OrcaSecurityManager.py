@@ -437,6 +437,9 @@ class OrcaSecurityManager:
 
         Returns:
             list[Any]: All paginated results combined
+
+        Raises:
+            Exception: If any API request fails or if response validation fails.
         """
         start_index = 0
         query.with_results_and_count(True).start_at_index(start_index)

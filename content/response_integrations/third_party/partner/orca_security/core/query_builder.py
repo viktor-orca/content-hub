@@ -226,9 +226,8 @@ class AssetQueryBuilder(BaseQueryBuilder):
 
 
 class VulnerabilityQueryBuilder:
-    """
-    Builder class for constructing vulnerability queries in the new API format.
-    """
+    """Builder class for constructing vulnerability queries in the new API format."""
+
     def __init__(self, limit: int = DEFAULT_RESULTS_LIMIT) -> None:
         self.limit: int = limit
         self.models: list[str] = ["VulnerabilityV2"]  # Main models for new API
